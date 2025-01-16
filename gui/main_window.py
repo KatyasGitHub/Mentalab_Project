@@ -286,10 +286,9 @@ class EEGApp_Main(QMainWindow):
         n = len(timestamps)
         freqs = np.fft.rfftfreq(n, d=1/sfreq)
 
-        # Clear existing plot and toolbar
         self.clear_plot_area()
 
-        # Create FFT canvas
+        # FFT canvas
         fft_canvas = FFTCanvas(self, width=5, height=4, dpi=100)
         for idx, ch in enumerate(selected_channels):
             yf = np.fft.rfft(selected_data[idx])
@@ -303,12 +302,10 @@ class EEGApp_Main(QMainWindow):
         fft_canvas.fig.tight_layout()
         fft_canvas.draw()
 
-        # Create and add the Navigation Toolbar
         toolbar = NavigationToolbar(fft_canvas, self)
         self.plot_area.addWidget(toolbar)
         self.current_toolbar = toolbar
 
-        # Add FFT plot to the plot area
         self.plot_area.addWidget(fft_canvas)
         self.current_plot_widget = fft_canvas
 
