@@ -2,8 +2,9 @@ import sys
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import (
-    QMainWindow, QStackedWidget, QAction, QFileDialog, QHBoxLayout, 
+    QMainWindow, QAction, QFileDialog, QHBoxLayout, 
     QListWidget, QVBoxLayout, QCheckBox, QPushButton, QWidget,
     QLabel, QLineEdit, QDialog, QFormLayout, QMessageBox, QListWidgetItem
 )
@@ -62,9 +63,24 @@ class EEGApp_Main(QMainWindow):
         left_panel_layout.addWidget(self.file_list)
         self.file_list.itemClicked.connect(self.on_file_clicked)
         
-        channels = QLabel("Channels")
-        channels.setStyleSheet("font-size: 18px; font-weight: bold;")
-        left_panel_layout.addWidget(channels)
+        # channels = QLabel("Channels")
+        # channels.setStyleSheet("font-size: 18px; font-weight: bold;")
+        # left_panel_layout.addWidget(channels)
+        # self.channel_list = QListWidget()
+        # self.channel_list.setSelectionMode(QListWidget.MultiSelection)
+        # left_panel_layout.addWidget(self.channel_list)
+
+        channels_layout = QHBoxLayout()
+        channels_label = QLabel("Channels")
+        channels_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        channels_layout.addWidget(channels_label)
+        clear_channels_button = QPushButton("Clear All")
+        clear_channels_button.setFixedSize(100, 35)  # Make the button very small
+        clear_channels_button.setToolTip("Clear all selected channels")
+        clear_channels_button.clicked.connect(self.clear_all_channels)
+        channels_layout.addWidget(clear_channels_button)
+        left_panel_layout.addLayout(channels_layout)
+
         self.channel_list = QListWidget()
         self.channel_list.setSelectionMode(QListWidget.MultiSelection)
         left_panel_layout.addWidget(self.channel_list)
@@ -77,6 +93,10 @@ class EEGApp_Main(QMainWindow):
         plot_fft_button = QPushButton("FFT Plot")
         plot_fft_button.clicked.connect(self.update_fft_plot)
         left_panel_layout.addWidget(plot_fft_button)
+
+        plot_bandpower_button = QPushButton("Bandpower Visualization")
+        plot_bandpower_button.clicked.connect(self.update_bandpower_visualization)
+        left_panel_layout.addWidget(plot_bandpower_button)
         
         left_panel_layout.addStretch()
         
@@ -114,6 +134,7 @@ class EEGApp_Main(QMainWindow):
         if file_name:
             self.file_name = file_name
             self.data = pd.read_csv(file_name)
+            # self.data.iloc[1:, 1:] = self.data.iloc[1:, 1:].div(1e6)
             self.channel_names = list(self.data.columns[1:])
             file_display_name = file_name.split('/')[-1]
 
@@ -187,6 +208,12 @@ class EEGApp_Main(QMainWindow):
 
     def get_selected_channels(self):
         return [item.text() for item in self.channel_checkboxes if item.checkState() == Qt.Checked]
+    
+    def clear_all_channels(self):
+        """Clear all selected channels in the channel list."""
+        for index in range(self.channel_list.count()):
+            item = self.channel_list.item(index)
+            item.setCheckState(Qt.Unchecked)
 
     def clear_plot_area(self):
         """Clears the current plot widget and toolbar from the plot area."""
@@ -217,13 +244,8 @@ class EEGApp_Main(QMainWindow):
             QMessageBox.warning(self, "Data Not Found", f"No data found for {file_display_name}.")
             return
 
-        # selected_data = self.filtered_data[selected_channels].to_numpy().T if self.filtered_data is not None else self.data[selected_channels].to_numpy().T
-        # timestamps = self.data.iloc[:, 0].to_numpy()  # Assuming first column is timestamps
-        # sfreq = 1 / np.mean(np.diff(timestamps))
         sfreq = self.file_frequency_store.get(file_display_name, None)
         selected_data = current_data[selected_channels].to_numpy().T
-        # timestamps = current_data.iloc[:, 0].to_numpy()  # Assume the first column is timestamps
-        # sfreq = self.file_frequency_store.get(file_display_name, 1.0)
 
         # Create MNE Raw object
         info = create_info(ch_names=selected_channels, sfreq=sfreq, ch_types='eeg')
@@ -257,13 +279,9 @@ class EEGApp_Main(QMainWindow):
             QMessageBox.warning(self, "Data Not Found", f"No data found for {file_display_name}.")
             return
 
-        # selected_data = self.filtered_data[selected_channels].to_numpy().T if self.filtered_data is not None else self.data[selected_channels].to_numpy().T
-        # timestamps = self.data.iloc[:, 0].to_numpy()  # Assuming first column is timestamps
-        # sfreq = 1 / np.mean(np.diff(timestamps))
         sfreq = self.file_frequency_store.get(file_display_name, None)
         selected_data = current_data[selected_channels].to_numpy().T
-        timestamps = self.data.iloc[:, 0].to_numpy()  # Assuming first column is timestamps
-        # sfreq = 1 / np.mean(np.diff(timestamps))
+        timestamps = self.data.iloc[:, 0].to_numpy()  
 
         n = len(timestamps)
         freqs = np.fft.rfftfreq(n, d=1/sfreq)
@@ -293,6 +311,77 @@ class EEGApp_Main(QMainWindow):
         # Add FFT plot to the plot area
         self.plot_area.addWidget(fft_canvas)
         self.current_plot_widget = fft_canvas
+
+    def update_bandpower_visualization(self):
+        selected_channels = self.get_selected_channels()
+        if len(selected_channels) == 0:
+            QMessageBox.warning(self, "No Channels Selected", "Please select one channel for visualization.")
+            return
+        elif len(selected_channels) > 1:
+            QMessageBox.warning(self, "Multiple Channels Selected", "Please select only one channel for bandpass visualization.")
+            return
+
+
+        current_item = self.file_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "No File Selected", "Please select a file from the list.")
+            return
+
+        file_display_name = current_item.text()
+        if file_display_name in self.file_data_store:
+            current_data = self.file_data_store[file_display_name]
+        else:
+            QMessageBox.warning(self, "Data Not Found", f"No data found for {file_display_name}.")
+            return
+        
+        sfreq = self.file_frequency_store.get(file_display_name, None)
+        if sfreq is None:
+            QMessageBox.warning(self, "Sampling Frequency Not Found", "Sampling frequency is required for filtering.")
+            return
+
+        current_data = self.file_data_store[file_display_name]
+        selected_channel = selected_channels[0]
+        data = current_data[selected_channel].to_numpy()
+
+        # Frequency bands (in Hz)
+        bands = {
+            "Delta (0.5-4 Hz)": (0.5, 4),
+            "Theta (4-8 Hz)": (4, 8),
+            "Alpha (8-13 Hz)": (8, 13),
+            "Beta (13-30 Hz)": (13, 30),
+            "Gamma (30-50 Hz)": (30, 50),
+        }
+
+        # Clear the existing plot and toolbar
+        self.clear_plot_area()
+
+        # Create subplots for each frequency band
+        num_bands = len(bands)
+        fig, axes = plt.subplots(num_bands, 1, figsize=(10, 8), sharex=True)
+        fig.subplots_adjust(hspace=0.4)
+        time = np.arange(len(data)) / sfreq  # Time vector based on sampling rate
+
+        for ax, (band_name, (low, high)) in zip(axes, bands.items()):
+            # Apply bandpass filter with sfreq
+            filtered_data = filter_data(data.reshape(1, -1), sfreq=sfreq, l_freq=low, h_freq=high).flatten()
+
+            # Plot the band in its subplot
+            ax.plot(time, filtered_data, label=band_name)
+            ax.set_title(f"{band_name}")
+            ax.set_ylabel("Amplitude")
+            # ax.legend(loc="upper right", fontsize="small")
+
+        # Set the x-axis label on the last subplot
+        axes[-1].set_xlabel("Time (s)", fontsize=14)
+        fig.suptitle(f"Brain Wave Bands for Channel {selected_channel[2]}", fontsize=16)
+
+        # Embed the plot in the GUI
+        canvas = FigureCanvas(fig)
+        toolbar = NavigationToolbar(canvas, self)
+        self.plot_area.addWidget(toolbar)
+        self.current_toolbar = toolbar
+        self.plot_area.addWidget(canvas)
+        self.current_plot_widget = canvas
 
     def apply_filters(self):
         dialog = QDialog(self)
