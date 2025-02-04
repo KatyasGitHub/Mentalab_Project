@@ -23,19 +23,24 @@ class EEGApp_CoverSlide(QWidget):
         logo_pixmap = QPixmap(image_path)
         logo_label.setPixmap(logo_pixmap.scaled(140, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         logo_label.setAlignment(Qt.AlignCenter)
-        
+
+        # Add spacing after the logo
+        layout.addWidget(logo_label, alignment=Qt.AlignCenter)
+        layout.addSpacing(40)  # Increase space between logo and title
+
         # Add title
         title_label = QLabel("Mentalab EEG Data Analysis Tool")
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 28px; font-weight: bold; margin-bottom: 20px;")
+        title_label.setStyleSheet("font-size: 34px; font-weight: bold;")
+
+        # Add more spacing after the title
+        layout.addWidget(title_label, alignment=Qt.AlignCenter)
+        layout.addSpacing(20)  # Increase space between title and button
 
         # Add load button
         load_button = QPushButton("Let's get started!")
-        load_button.setStyleSheet("padding: 10px; font-size: 20px;")
+        load_button.setStyleSheet("padding: 10px; font-size: 22px;")
         load_button.clicked.connect(self.switch_to_main)
 
-        # Add elements to layout
-        layout.addWidget(logo_label, alignment=Qt.AlignCenter)
-        layout.addWidget(title_label, alignment=Qt.AlignCenter)
         layout.addWidget(load_button, alignment=Qt.AlignCenter)
         self.setLayout(layout)
